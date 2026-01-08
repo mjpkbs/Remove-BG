@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Person Background Remover</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>인물 배경 제거</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <style>
         * {
             margin: 0;
@@ -13,7 +13,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
@@ -265,28 +265,28 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎯 Person Background Remover</h1>
-        <p class="subtitle">Select a person from your image and remove the background</p>
+        <h1>🎯 인물 배경 제거</h1>
+        <p class="subtitle">이미지에서 인물을 선택하고 배경을 제거하세요</p>
 
         <div class="api-section">
             <div class="input-group">
-                <input type="password" id="apiKey" placeholder="Enter your Replicate API Key">
+                <input type="password" id="apiKey" placeholder="Replicate API 키를 입력하세요">
             </div>
             <div class="help-text">
-                Get your API key from <a href="https://replicate.com/account/api-tokens" target="_blank">Replicate</a>
+                <a href="https://replicate.com/account/api-tokens" target="_blank">Replicate</a>에서 API 키를 발급받으세요
             </div>
         </div>
 
         <div class="upload-section">
             <input type="file" id="fileInput" accept="image/*" style="display: none;">
             <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                📁 Upload Image
+                📁 이미지 업로드
             </button>
         </div>
 
         <div class="workspace">
             <div id="instruction" class="instruction hidden">
-                ✨ Draw a rectangle around the person you want to keep. Click and drag to select.
+                ✨ 유지하려는 인물 주위에 사각형을 그리세요. 클릭 후 드래그하여 선택합니다.
             </div>
 
             <div class="canvas-container hidden" id="canvasContainer">
@@ -294,19 +294,19 @@
             </div>
 
             <div class="button-group hidden" id="controls">
-                <button class="btn btn-secondary" onclick="resetSelection()">🔄 Reset Selection</button>
-                <button class="btn btn-primary" onclick="processImage()">✂️ Remove Background</button>
+                <button class="btn btn-secondary" onclick="resetSelection()">🔄 선택 초기화</button>
+                <button class="btn btn-primary" onclick="processImage()">✂️ 배경 제거</button>
             </div>
         </div>
 
         <div id="status"></div>
 
         <div class="result-section hidden" id="resultSection">
-            <h2 style="margin-bottom: 20px;">Result</h2>
+            <h2 style="margin-bottom: 20px;">결과</h2>
             <img id="resultImage" class="result-image">
             <div class="button-group" style="margin-top: 20px;">
-                <button class="btn btn-download" onclick="downloadImage()">⬇️ Download PNG</button>
-                <button class="btn btn-secondary" onclick="reset()">🔄 Start Over</button>
+                <button class="btn btn-download" onclick="downloadImage()">⬇️ PNG 다운로드</button>
+                <button class="btn btn-secondary" onclick="reset()">🔄 처음부터 다시</button>
             </div>
         </div>
     </div>
@@ -338,7 +338,6 @@
             canvas = document.getElementById('canvas');
             ctx = canvas.getContext('2d');
 
-            // Set canvas size to image size
             const maxWidth = 800;
             const scale = Math.min(1, maxWidth / img.width);
             canvas.width = img.width * scale;
@@ -375,17 +374,14 @@
             endX = e.clientX - rect.left;
             endY = e.clientY - rect.top;
 
-            // Redraw image
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            // Draw selection rectangle
             ctx.strokeStyle = '#667eea';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(startX, startY, endX - startX, endY - startY);
 
-            // Fill with semi-transparent color
             ctx.fillStyle = 'rgba(102, 126, 234, 0.2)';
             ctx.fillRect(startX, startY, endX - startX, endY - startY);
         }
@@ -412,30 +408,26 @@
             const apiKey = document.getElementById('apiKey').value.trim();
             
             if (!apiKey) {
-                showStatus('Please enter your Replicate API key', 'error');
+                showStatus('Replicate API 키를 입력해주세요', 'error');
                 return;
             }
 
             if (!selection || selection.width < 10 || selection.height < 10) {
-                showStatus('Please draw a selection around the person you want to keep', 'error');
+                showStatus('유지하려는 인물 주위에 선택 영역을 그려주세요', 'error');
                 return;
             }
 
-            showStatus('Processing image...', 'processing');
+            showStatus('이미지 처리 중...', 'processing');
 
             try {
-                // Create a new canvas for the cropped area
                 const cropCanvas = document.createElement('canvas');
                 const cropCtx = cropCanvas.getContext('2d');
 
-                // Calculate scale factor
                 const scale = img.width / canvas.width;
 
-                // Set crop canvas size to the actual image size portion
                 cropCanvas.width = selection.width * scale;
                 cropCanvas.height = selection.height * scale;
 
-                // Draw the cropped portion
                 cropCtx.drawImage(
                     img,
                     selection.x * scale,
@@ -447,11 +439,10 @@
                     cropCanvas.height
                 );
 
-                // Convert to base64
                 const base64Image = cropCanvas.toDataURL('image/png').split(',')[1];
 
-                // Call our serverless function
-                const response = await fetch('/.netlify/functions/remove-bg', {
+                // 서버리스 함수 호출
+                const response = await fetch('/api/remove-bg', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -463,24 +454,22 @@
                 });
 
                 if (!response.ok) {
-                    let errorMessage = 'API request failed';
+                    let errorMessage = 'API 요청 실패';
                     try {
                         const error = await response.json();
                         errorMessage = error.error || errorMessage;
                     } catch (e) {
                         const text = await response.text();
-                        errorMessage = text || `Server error (${response.status})`;
+                        errorMessage = text || `서버 오류 (${response.status})`;
                     }
                     throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
-                
-                // Poll for result
                 await pollForResult(data.predictionId, apiKey);
 
             } catch (error) {
-                showStatus(`Error: ${error.message}`, 'error');
+                showStatus(`오류: ${error.message}`, 'error');
                 console.error(error);
             }
         }
@@ -491,7 +480,7 @@
 
             while (attempts < maxAttempts) {
                 try {
-                    const response = await fetch('/.netlify/functions/get-result', {
+                    const response = await fetch('/api/get-result', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -503,12 +492,12 @@
                     });
 
                     if (!response.ok) {
-                        let errorMessage = 'Failed to get result';
+                        let errorMessage = '결과 가져오기 실패';
                         try {
                             const error = await response.json();
                             errorMessage = error.error || errorMessage;
                         } catch (e) {
-                            errorMessage = `Server error (${response.status})`;
+                            errorMessage = `서버 오류 (${response.status})`;
                         }
                         throw new Error(errorMessage);
                     }
@@ -516,22 +505,21 @@
                     const data = await response.json();
 
                     if (data.status === 'succeeded') {
-                        showStatus('Background removed successfully!', 'success');
+                        showStatus('배경 제거 완료!', 'success');
                         displayResult(data.output);
                         return;
                     } else if (data.status === 'failed') {
-                        throw new Error('Background removal failed');
+                        throw new Error('배경 제거 실패');
                     }
 
-                    // Wait 1 second before polling again
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     attempts++;
                 } catch (error) {
-                    throw new Error(`Polling error: ${error.message}`);
+                    throw new Error(`폴링 오류: ${error.message}`);
                 }
             }
 
-            throw new Error('Processing timeout');
+            throw new Error('처리 시간 초과');
         }
 
         function displayResult(outputUrl) {
@@ -544,11 +532,9 @@
             const resultImage = document.getElementById('resultImage');
             
             try {
-                // Fetch the image
                 const response = await fetch(resultImage.src);
                 const blob = await response.blob();
                 
-                // Create download link
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -558,7 +544,7 @@
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
             } catch (error) {
-                showStatus('Error downloading image', 'error');
+                showStatus('이미지 다운로드 오류', 'error');
             }
         }
 
