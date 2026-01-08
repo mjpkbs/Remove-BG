@@ -1,0 +1,19 @@
+{
+  "name": "person-bg-remover",
+  "version": "1.0.0",
+  "description": "Web app to select and remove background from people in images",
+  "main": "index.html",
+  "scripts": {
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": [
+    "background-removal",
+    "image-processing",
+    "replicate",
+    "birefnet",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT"
+}
