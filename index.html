@@ -425,8 +425,21 @@
 
                 const scale = img.width / canvas.width;
 
-                cropCanvas.width = selection.width * scale;
-                cropCanvas.height = selection.height * scale;
+                // 원본 크기로 자르기
+                let cropWidth = selection.width * scale;
+                let cropHeight = selection.height * scale;
+
+                // 최대 크기 제한 (2048px) - Vercel 4.5MB 제한 고려
+                const maxDimension = 2048;
+                if (cropWidth > maxDimension || cropHeight > maxDimension) {
+                    const resizeScale = Math.min(maxDimension / cropWidth, maxDimension / cropHeight);
+                    cropWidth = Math.floor(cropWidth * resizeScale);
+                    cropHeight = Math.floor(cropHeight * resizeScale);
+                    showStatus('이미지가 커서 크기를 조정했습니다... 처리 중...', 'processing');
+                }
+
+                cropCanvas.width = cropWidth;
+                cropCanvas.height = cropHeight;
 
                 cropCtx.drawImage(
                     img,
@@ -435,11 +448,20 @@
                     selection.width * scale,
                     selection.height * scale,
                     0, 0,
-                    cropCanvas.width,
-                    cropCanvas.height
+                    cropWidth,
+                    cropHeight
                 );
 
-                const base64Image = cropCanvas.toDataURL('image/png').split(',')[1];
+                // JPEG로 압축 (PNG보다 작음, 품질 0.85)
+                let base64Image = cropCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+                
+                // 크기 체크 (3MB 제한, base64는 원본보다 약 33% 큼)
+                const sizeInMB = (base64Image.length * 3) / 4 / 1024 / 1024;
+                if (sizeInMB > 3) {
+                    // 너무 크면 품질 낮춰서 재시도
+                    base64Image = cropCanvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+                    showStatus('이미지 압축 중... 처리 중...', 'processing');
+                }
 
                 // 서버리스 함수 호출
                 const response = await fetch('/api/remove-bg', {
@@ -455,12 +477,24 @@
 
                 if (!response.ok) {
                     let errorMessage = 'API 요청 실패';
-                    try {
-                        const error = await response.json();
-                        errorMessage = error.error || errorMessage;
-                    } catch (e) {
-                        const text = await response.text();
-                        errorMessage = text || `서버 오류 (${response.status})`;
+                    const contentType = response.headers.get('content-type');
+                    
+                    if (response.status === 413) {
+                        errorMessage = '이미지가 너무 큽니다. 더 작은 영역을 선택하거나 작은 이미지를 사용해주세요.';
+                    } else if (contentType && contentType.includes('application/json')) {
+                        try {
+                            const error = await response.json();
+                            errorMessage = error.error || errorMessage;
+                        } catch (e) {
+                            errorMessage = `서버 오류 (${response.status})`;
+                        }
+                    } else {
+                        try {
+                            const text = await response.text();
+                            errorMessage = text || `서버 오류 (${response.status})`;
+                        } catch (e) {
+                            errorMessage = `서버 오류 (${response.status})`;
+                        }
                     }
                     throw new Error(errorMessage);
                 }
@@ -493,10 +527,16 @@
 
                     if (!response.ok) {
                         let errorMessage = '결과 가져오기 실패';
-                        try {
-                            const error = await response.json();
-                            errorMessage = error.error || errorMessage;
-                        } catch (e) {
+                        const contentType = response.headers.get('content-type');
+                        
+                        if (contentType && contentType.includes('application/json')) {
+                            try {
+                                const error = await response.json();
+                                errorMessage = error.error || errorMessage;
+                            } catch (e) {
+                                errorMessage = `서버 오류 (${response.status})`;
+                            }
+                        } else {
                             errorMessage = `서버 오류 (${response.status})`;
                         }
                         throw new Error(errorMessage);
