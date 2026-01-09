@@ -512,23 +512,20 @@
                 });
 
                 if (!response.ok) {
-                    if (response.status === 413) {
-                        throw new Error('이미지가 너무 큽니다. 더 작은 영역을 선택하거나 작은 이미지를 사용해주세요.');
-                    }
+                    let errorMessage = `서버 오류 (${response.status})`;
                     
-                    // Try to get error message
-                    let errorMessage = 'API 요청 실패';
-                    try {
-                        const contentType = response.headers.get('content-type');
-                        if (contentType && contentType.includes('application/json')) {
+                    if (response.status === 413) {
+                        errorMessage = '이미지가 너무 큽니다. 더 작은 영역을 선택해주세요.';
+                    } else if (response.status === 500) {
+                        errorMessage = 'API 처리 중 오류가 발생했습니다. API 키를 확인하거나 잠시 후 다시 시도해주세요.';
+                    } else {
+                        // Try to read error message
+                        try {
                             const error = await response.json();
-                            errorMessage = error.error || errorMessage;
-                        } else {
-                            const text = await response.text();
-                            if (text) errorMessage = text;
+                            if (error.error) errorMessage = error.error;
+                        } catch (e) {
+                            // If can't parse, use status code
                         }
-                    } catch (e) {
-                        errorMessage = `서버 오류 (${response.status})`;
                     }
                     
                     throw new Error(errorMessage);
