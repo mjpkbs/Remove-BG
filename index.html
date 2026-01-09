@@ -429,13 +429,13 @@
                 let cropWidth = selection.width * scale;
                 let cropHeight = selection.height * scale;
 
-                // 최대 크기 제한 (2048px) - Vercel 4.5MB 제한 고려
-                const maxDimension = 2048;
+                // 최대 크기를 더 작게 제한 (1536px) - Vercel 제한 고려
+                const maxDimension = 1536;
                 if (cropWidth > maxDimension || cropHeight > maxDimension) {
                     const resizeScale = Math.min(maxDimension / cropWidth, maxDimension / cropHeight);
                     cropWidth = Math.floor(cropWidth * resizeScale);
                     cropHeight = Math.floor(cropHeight * resizeScale);
-                    showStatus('이미지가 커서 크기를 조정했습니다... 처리 중...', 'processing');
+                    showStatus('이미지 크기 조정 중...', 'processing');
                 }
 
                 cropCanvas.width = cropWidth;
@@ -452,16 +452,45 @@
                     cropHeight
                 );
 
-                // JPEG로 압축 (PNG보다 작음, 품질 0.85)
-                let base64Image = cropCanvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+                // 프로그레시브 압축 - 크기에 맞게 품질 자동 조정
+                let quality = 0.85;
+                let base64Image = cropCanvas.toDataURL('image/jpeg', quality).split(',')[1];
+                let sizeInMB = (base64Image.length * 3) / 4 / 1024 / 1024;
                 
-                // 크기 체크 (3MB 제한, base64는 원본보다 약 33% 큼)
-                const sizeInMB = (base64Image.length * 3) / 4 / 1024 / 1024;
-                if (sizeInMB > 3) {
-                    // 너무 크면 품질 낮춰서 재시도
-                    base64Image = cropCanvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-                    showStatus('이미지 압축 중... 처리 중...', 'processing');
+                // 크기가 2.5MB 넘으면 점진적으로 품질 낮춤
+                while (sizeInMB > 2.5 && quality > 0.3) {
+                    quality -= 0.1;
+                    base64Image = cropCanvas.toDataURL('image/jpeg', quality).split(',')[1];
+                    sizeInMB = (base64Image.length * 3) / 4 / 1024 / 1024;
+                    showStatus(`이미지 압축 중... (${Math.round(sizeInMB * 10) / 10}MB, 품질: ${Math.round(quality * 100)}%)`, 'processing');
                 }
+                
+                // 여전히 크면 더 작게 리사이즈
+                if (sizeInMB > 2.5) {
+                    const newMaxDim = 1024;
+                    if (cropWidth > newMaxDim || cropHeight > newMaxDim) {
+                        const newScale = Math.min(newMaxDim / cropWidth, newMaxDim / cropHeight);
+                        cropCanvas.width = Math.floor(cropWidth * newScale);
+                        cropCanvas.height = Math.floor(cropHeight * newScale);
+                        
+                        cropCtx.drawImage(
+                            img,
+                            selection.x * scale,
+                            selection.y * scale,
+                            selection.width * scale,
+                            selection.height * scale,
+                            0, 0,
+                            cropCanvas.width,
+                            cropCanvas.height
+                        );
+                        
+                        base64Image = cropCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+                        sizeInMB = (base64Image.length * 3) / 4 / 1024 / 1024;
+                        showStatus(`이미지 강력 압축 중... (${Math.round(sizeInMB * 10) / 10}MB)`, 'processing');
+                    }
+                }
+                
+                console.log(`최종 이미지 크기: ${Math.round(sizeInMB * 100) / 100}MB, 해상도: ${cropCanvas.width}x${cropCanvas.height}, 품질: ${Math.round(quality * 100)}%`);
 
                 // 서버리스 함수 호출
                 const response = await fetch('/api/remove-bg', {
@@ -477,25 +506,28 @@
 
                 if (!response.ok) {
                     let errorMessage = 'API 요청 실패';
-                    const contentType = response.headers.get('content-type');
                     
                     if (response.status === 413) {
                         errorMessage = '이미지가 너무 큽니다. 더 작은 영역을 선택하거나 작은 이미지를 사용해주세요.';
-                    } else if (contentType && contentType.includes('application/json')) {
-                        try {
+                        throw new Error(errorMessage);
+                    }
+                    
+                    // Clone response to read it multiple times if needed
+                    const responseClone = response.clone();
+                    const contentType = response.headers.get('content-type');
+                    
+                    try {
+                        if (contentType && contentType.includes('application/json')) {
                             const error = await response.json();
                             errorMessage = error.error || errorMessage;
-                        } catch (e) {
-                            errorMessage = `서버 오류 (${response.status})`;
-                        }
-                    } else {
-                        try {
-                            const text = await response.text();
+                        } else {
+                            const text = await responseClone.text();
                             errorMessage = text || `서버 오류 (${response.status})`;
-                        } catch (e) {
-                            errorMessage = `서버 오류 (${response.status})`;
                         }
+                    } catch (e) {
+                        errorMessage = `서버 오류 (${response.status})`;
                     }
+                    
                     throw new Error(errorMessage);
                 }
 
